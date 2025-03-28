@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChromePicker } from 'react-color';
-import logoImage from './assets/images/logo.jpg';
-import { FaInstagram, FaFacebook, FaWhatsapp, FaLinkedin, FaYoutube, FaTiktok, FaTwitter, FaPinterest } from 'react-icons/fa'; // Importando ícones
+import logoImage from '../assets/images/logo.jpg';
 
 const backgroundStyle = {
   backgroundImage: `url(${logoImage})`,
@@ -105,7 +104,7 @@ const CardForm = ({ onSubmit }) => {
   return (
     <div style={backgroundStyle}>
       <div className="container my-4" style={{ padding: '20px', width: '90%', maxWidth: '1200px' }}>
-        <h1 className="text-center mb-4">3D Connect</h1>
+        <h1 className="text-center mb-4">Tap Conecte</h1>
         {error && <p className="alert alert-danger">{error}</p>}
 
         <div>
@@ -247,7 +246,7 @@ const CardForm = ({ onSubmit }) => {
 
           {activeTab === 'slides' && (
             <div>
-              <h3>Slides</h3>
+              
               <div className="form-group">
                 <label className="label-white">Logo:</label>
                 <input
@@ -276,21 +275,7 @@ const CardForm = ({ onSubmit }) => {
                 ))}
               </div>
 
-              {/* Seleção de ícone */}
-              <div>
-                <h4>Selecione um Ícone para Redes Sociais:</h4>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                  <FaInstagram onClick={() => handleIconSelect('instagram')} style={{ cursor: 'pointer', fontSize: '24px' }} />
-                  <FaFacebook onClick={() => handleIconSelect('facebook')} style={{ cursor: 'pointer', fontSize: '24px' }} />
-                  <FaWhatsapp onClick={() => handleIconSelect('whatsapp')} style={{ cursor: 'pointer', fontSize: '24px' }} />
-                  <FaLinkedin onClick={() => handleIconSelect('linkedin')} style={{ cursor: 'pointer', fontSize: '24px' }} />
-                  <FaYoutube onClick={() => handleIconSelect('youtube')} style={{ cursor: 'pointer', fontSize: '24px' }} />
-                  <FaTiktok onClick={() => handleIconSelect('tiktok')} style={{ cursor: 'pointer', fontSize: '24px' }} />
-                  <FaTwitter onClick={() => handleIconSelect('twitter')} style={{ cursor: 'pointer', fontSize: '24px' }} />
-                  <FaPinterest onClick={() => handleIconSelect('pinterest')} style={{ cursor: 'pointer', fontSize: '24px' }} />
-                </div>
-                {selectedIcon && <p>Ícone Selecionado: {selectedIcon}</p>}
-              </div>
+             
 
               {/* Seletores de cor */}
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -319,7 +304,7 @@ const CardForm = ({ onSubmit }) => {
                       setCurrentPicker('label');
                     }}
                   >
-                    Cor da Label
+                    Cor do Rótulo
                   </button>
                   {showPicker.label && (
                     <div ref={pickerRef}>
@@ -348,9 +333,7 @@ const CardForm = ({ onSubmit }) => {
             </div>
           )}
 
-          <button type="submit" className="btn btn-primary">
-            Salvar e Visualizar
-          </button>
+          <button type="submit" className="btn btn-primary">Salvar</button>
         </form>
       </div>
     </div>

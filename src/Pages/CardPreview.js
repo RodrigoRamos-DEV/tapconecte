@@ -1,15 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
 
 // Importando as logos
-import instagramLogo from './assets/images/instagram.png'; // Ajuste o caminho conforme necessário
-import facebookLogo from './assets/images/facebook.png'; // Ajuste o caminho conforme necessário
-import whatsappLogo from './assets/images/whatsapp.png'; // Ajuste o caminho conforme necessário
-import linkedinLogo from './assets/images/linkedin.png'; // Logo do LinkedIn
-import youtubeLogo from './assets/images/youtube.png'; // Logo do YouTube
-import tiktokLogo from './assets/images/tiktok.png'; // Logo do TikTok
-import kwayLogo from './assets/images/kway.png'; // Logo do Kway
-import xLogo from './assets/images/x.png'; // Logo do X
-import twitchLogo from './assets/images/twitch.png'; // Logo do Twitch
+import instagramLogo from '../assets/images/instagram.png';
+import facebookLogo from '../assets/images/facebook.png'; // Ajuste o caminho conforme necessário
+import whatsappLogo from '../assets/images/whatsapp.png'; // Ajuste o caminho conforme necessário
+import linkedinLogo from '../assets/images/linkedin.png'; // Logo do LinkedIn
+import youtubeLogo from '../assets/images/youtube.png'; // Logo do YouTube
+import tiktokLogo from '../assets/images/tiktok.png'; // Logo do TikTok
+import kwayLogo from '../assets/images/kway.png'; // Logo do Kway
+import xLogo from '../assets/images/x.png'; // Logo do X
+import twitchLogo from '../assets/images/twitch.png'; // Logo do Twitch
 
 const CardPreview = ({ cardData }) => {
   const {
