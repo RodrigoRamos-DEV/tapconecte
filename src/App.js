@@ -1,28 +1,35 @@
-import React, { useState } from 'react';
-import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
-import './App.css';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import PrivateRoute from './Componentes/PrivateRoute';
+import Login from './Pages/Login';
+import AdminPanel from './Pages/AdminPanel';
+import ValidarCodigo from './Pages/ValidarCodigo';
 import CardForm from './Pages/CardForm';
 import CardPreview from './Pages/CardPreview';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import './App.css';
+import NotFound from './Pages/NotFound'; // 👈 Importe o NotFound
 
 function App() {
-  const [cardData, setCardData] = useState(null);
-
-  const handleCardSubmit = (data) => {
-    setCardData(data);
-  };
-
   return (
     <Router>
-      <div className="App">
+      <AuthProvider>
         <Routes>
-          <Route path="/" element={<CardForm onSubmit={handleCardSubmit} />} />
-          <Route path="/preview" element={cardData ? <CardPreview cardData={cardData} /> : <Navigate to="/" />} />
+          {/* 👇 Rota raiz redireciona para /login */}
+          <Route path="/" element={<Navigate to="/login" replace />} />
+
+          {/* Rotas públicas */}
+          <Route path="/login" element={<Login />} />
+
+          {/* Rotas privadas */}
+          <Route path="/validar-codigo" element={<PrivateRoute><ValidarCodigo /></PrivateRoute>} />
+          <Route path="/cardform" element={<PrivateRoute><CardForm /></PrivateRoute>} />
+          <Route path="/preview/:codigo" element={<PrivateRoute><CardPreview /></PrivateRoute>} />
+          <Route path="/admin" element={<PrivateRoute isAdmin><AdminPanel /></PrivateRoute>} />
+
+          {/* Rota 404 - SEMPRE a última! */}
+          <Route path="*" element={<NotFound />} />
         </Routes>
-      </div>
+      </AuthProvider>
     </Router>
   );
 }
-
 export default App;

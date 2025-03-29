@@ -1,396 +1,246 @@
-import React, { useState, useRef } from 'react';
-import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { auth, db, storage } from '../firebase';
+import { onAuthStateChanged } from 'firebase/auth';
 import { ChromePicker } from 'react-color';
-import logoImage from '../assets/images/logo.jpg';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import './cardform.css';
 
-const backgroundStyle = {
-  backgroundImage: `url(${logoImage})`,
-  backgroundSize: 'cover',
-  backgroundPosition: 'center',
-  backgroundRepeat: 'no-repeat',
-  height: '100vh',
-  display: 'flex',
-  justifyContent: 'center',
-  alignItems: 'center',
-};
-
-const CardForm = ({ onSubmit }) => {
-  const [activeTab, setActiveTab] = useState('profile');
-  const [name, setName] = useState('');
-  const [instagram, setInstagram] = useState('');
-  const [facebook, setFacebook] = useState('');
-  const [whatsapp, setWhatsapp] = useState('');
-  const [phone, setPhone] = useState('');
-  const [address, setAddress] = useState('');
-  const [logo, setLogo] = useState(null);
-  const [pixKey, setPixKey] = useState('');
-  const [website, setWebsite] = useState('');
-  const [about, setAbout] = useState('');
-  const [linkedin, setLinkedin] = useState('');
-  const [youtube, setYoutube] = useState('');
-  const [tiktok, setTiktok] = useState('');
-  const [x, setX] = useState('');
-  const [bgColor, setBgColor] = useState('#ffffff');
-  const [labelBgColor, setLabelBgColor] = useState('#f0f0f0');
-  const [fontColor, setFontColor] = useState('#000000');
-  const [bgImage, setBgImage] = useState(null);
-  const [carouselImages, setCarouselImages] = useState([null, null, null]);
-  const [error, setError] = useState('');
-  const [showPicker, setShowPicker] = useState({ bg: false, label: false, font: false });
-  const [currentPicker, setCurrentPicker] = useState(null);
-  const [selectedIcon, setSelectedIcon] = useState(null); // Estado para armazenar o ícone selecionado
-  const pickerRef = useRef(null);
+const CardForm = () => {
   const navigate = useNavigate();
-  const [logoUploaded, setLogoUploaded] = useState(false);
-const [bgImageUploaded, setBgImageUploaded] = useState(false);
-const [carouselUploaded, setCarouselUploaded] = useState([false, false, false]);
-const [markerPosition, setMarkerPosition] = useState([51.505, -0.09]); // Posição inicial do marcador
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
-  
-  
+  // Estados para dados do formulário
+  const [formData, setFormData] = useState({
+    name: '',
+    instagram: '',
+    facebook: '',
+    whatsapp: '',
+    phone: '',
+    address: '',
+    pixKey: '',
+    website: '',
+    about: '',
+    linkedin: '',
+    youtube: '',
+    tiktok: '',
+    x: '',
+    twitch: ''
+  });
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!name ) {
-      setError('Nome e WhatsApp são obrigatórios.');
-      return;
+  // Estados para cores e imagens
+  const [showColorPicker, setShowColorPicker] = useState({ bg: false, label: false, font: false });
+  const [colors, setColors] = useState({
+    bgColor: '#ffffff',
+    labelBgColor: '#f0f0f0',
+    fontColor: '#000000'
+  });
+
+  const [logo, setLogo] = useState('');
+  const [bgImage, setBgImage] = useState('');
+  const [carouselImages, setCarouselImages] = useState(['', '', '']);
+
+  // Função para upload de imagens
+  const handleImageUpload = async (file, type, index = null) => {
+    if (!file || !user) return;
+
+    try {
+      // 1. Criar referência no Storage
+      const storagePath = `usuarios/${user.uid}/${type}/${Date.now()}_${file.name}`;
+      const storageRef = ref(storage, storagePath);
+
+      // 2. Fazer upload
+      await uploadBytes(storageRef, file);
+
+      // 3. Obter URL
+      const downloadURL = await getDownloadURL(storageRef);
+
+      // 4. Atualizar estado
+      if (type === 'logo') {
+        setLogo(downloadURL);
+      } else if (type === 'bg') {
+        setBgImage(downloadURL);
+      } else if (type === 'carousel' && index !== null) {
+        const newCarousel = [...carouselImages];
+        newCarousel[index] = downloadURL;
+        setCarouselImages(newCarousel);
+      }
+
+    } catch (error) {
+      console.error('Erro no upload:', error);
+      setError('Falha ao enviar imagem.');
     }
-
-    const cardData = {
-      name,
-      instagram,
-      facebook,
-      whatsapp,
-      phone,
-      address,
-      logo,
-      pixKey,
-      website,
-      about,
-      linkedin,
-      youtube,
-      tiktok,
-      x,
-      bgColor,
-      labelBgColor,
-      fontColor,
-      bgImage,
-      carouselImages,
-      selectedIcon, // Adicionando ícone selecionado ao objeto de dados
-    };
-
-    onSubmit(cardData);
-    navigate('/preview');
   };
 
- 
-  const handleLogoChange = (e) => {
-    setLogo(e.target.files[0]);
-    setLogoUploaded(true); // Atualiza o estado para indicar que o upload foi feito
+  // Quando o usuário seleciona uma imagem
+  const handleImageChange = (e, type, index = null) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    handleImageUpload(file, type, index);
   };
 
-  const handleBgImageChange = (e) => {
-    setBgImage(e.target.files[0]);
-    setBgImageUploaded(true);
+  // Carregar dados ao montar o componente
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+      if (!currentUser) {
+        navigate('/login');
+        return;
+      }
+
+      setUser(currentUser);
+      
+      try {
+        const userDoc = await getDoc(doc(db, 'usuarios', currentUser.uid));
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          
+          // Carregar dados do formulário
+          if (userData.dadosCartao) {
+            setFormData(userData.dadosCartao);
+            setLogo(userData.dadosCartao.logo || '');
+            setBgImage(userData.dadosCartao.bgImage || '');
+            setCarouselImages(userData.dadosCartao.carouselImages || ['', '', '']);
+          }
+
+          // Carregar cores
+          if (userData.colors) {
+            setColors(userData.colors);
+          }
+        }
+      } catch (error) {
+        setError('Erro ao carregar dados: ' + error.message);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return unsubscribe;
+  }, [navigate]);
+
+  // Atualizar estado do formulário
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleCarouselImageChange = (index, e) => {
-    const updatedImages = [...carouselImages];
-    updatedImages[index] = e.target.files[0];
-    setCarouselImages(updatedImages);
-  
-    const updatedStatus = [...carouselUploaded];
-    updatedStatus[index] = true;
-    setCarouselUploaded(updatedStatus);
-  };
-
+  // Atualizar cores
   const handleColorChange = (color, type) => {
-    const rgbaColor = `rgba(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b}, ${color.rgb.a})`;
-    if (type === 'bg') setBgColor(rgbaColor);
-    if (type === 'label') setLabelBgColor(rgbaColor);
-    if (type === 'font') setFontColor(rgbaColor);
+    setColors(prev => ({ ...prev, [`${type}Color`]: color.hex }));
   };
 
-  const handleIconSelect = (icon) => {
-    setSelectedIcon(icon); // Atualiza o ícone selecionado
+  // Enviar dados
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setSuccess('');
+    
+    try {
+      if (!user) throw new Error('Usuário não autenticado');
+
+      // Preparar dados para salvar
+      const userData = {
+        dadosCartao: {
+          ...formData,
+          logo,
+          bgImage,
+          carouselImages
+        },
+        colors,
+        lastUpdated: new Date().toISOString()
+      };
+
+      // Salvar no Firestore
+      await updateDoc(doc(db, 'usuarios', user.uid), userData);
+      
+      setSuccess('Dados salvos com sucesso!');
+      setTimeout(() => navigate(`/preview/${user.uid}`), 1500);
+    } catch (error) {
+      setError('Erro ao salvar: ' + error.message);
+    }
   };
+
+  if (loading) {
+    return <div className="loading">Carregando...</div>;
+  }
 
   return (
-    <div style={backgroundStyle}>
-      <div className="container my-4" style={{ padding: '20px', width: '90%', maxWidth: '1200px' }}>
-        <h1 className="text-center mb-4">Tap Conecte</h1>
-        {error && <p className="alert alert-danger">{error}</p>}
+    <div className="card-form-container">
+      <h1>Configurar Seu Cartão Digital</h1>
+      
+      {error && <div className="alert error">{error}</div>}
+      {success && <div className="alert success">{success}</div>}
 
-        <div class="button-container">
-          <button className="glow-on-hover" onClick={() => setActiveTab('profile')}>Informações de Perfil</button>
-          <button className="glow-on-hover" onClick={() => setActiveTab('social')}>Redes Sociais</button>
-          <button className="glow-on-hover" onClick={() => setActiveTab('slides')}>Pesonalização</button>
+      <form onSubmit={handleSubmit} className="card-form">
+        {/* Seção de Informações Pessoais */}
+        <div className="form-section">
+          <h2>Informações Pessoais</h2>
+          <div className="form-group">
+            <label>Nome Completo*</label>
+            <input
+              type="text"
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
+              required
+            />
+          </div>
+
+          {/* ... (mantenha todos os outros campos do formulário) */}
         </div>
 
-        <form className="form-container" onSubmit={handleSubmit}>
-          {activeTab === 'profile' && (
-            <div>
-              
-              <div className="form-group">
-  <label className="label-white">Nome:</label>
-  <input
-    type="text"
-    value={name}
-    onChange={(e) => setName(e.target.value)}
-    required
-    className="form-control"
-    placeholder="João Silva"
-  />
-</div>
-<div className="form-group">
-  <label className="label-white">Telefone:</label>
-  <input
-    type="tel"
-    value={phone}
-    onChange={(e) => setPhone(e.target.value)}
-    className="form-control"
-    placeholder="(99) 99999-9999"
-  />
-</div>
-<div className="form-group">
-<label className="label-white">Endereço:</label>
-<label className="label-white">Endereço:</label>
-  <input
-    type="text"
-    value={address}
-    onChange={(e) => setAddress(e.target.value)}
-    className="form-control"
-    placeholder="Rua A, 123"
-  />
+        {/* Seção de Personalização */}
+        <div className="form-section">
+          <h2>Personalização</h2>
+          
+          {/* Upload de Logo */}
+          <div className="form-group">
+            <label>Logo</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleImageChange(e, 'logo')}
+            />
+            {logo && <img src={logo} alt="Pré-visualização do Logo" style={{ width: '100px', marginTop: '10px' }} />}
           </div>
-<div className="form-group">
-  <label className="label-white">Sobre:</label>
-  <textarea
-    value={about}
-    onChange={(e) => setAbout(e.target.value)}
-    className="form-control"
-    placeholder="Fale um pouco sobre você"
-  />
-</div>
 
-            </div>
-          )}
+          {/* Upload de Imagem de Fundo */}
+          <div className="form-group">
+            <label>Imagem de Fundo</label>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleImageChange(e, 'bg')}
+            />
+            {bgImage && <img src={bgImage} alt="Pré-visualização do Fundo" style={{ width: '100px', marginTop: '10px' }} />}
+          </div>
 
-{activeTab === 'social' && (
-  <div className="social-container">
-    <div className="social-column">
-      <div className="form-group">
-        <label className="label-white">Instagram:</label>
-        <input
-          type="url"
-          value={instagram}
-          onChange={(e) => setInstagram(e.target.value)}
-          className="form-control"
-          placeholder="Exemplo: https://instagram.com/seuusuario"
-        />
-      </div>
-      <div className="form-group">
-        <label className="label-white">Facebook:</label>
-        <input
-          type="url"
-          value={facebook}
-          onChange={(e) => setFacebook(e.target.value)}
-          className="form-control"
-          placeholder="Exemplo: https://facebook.com/seuusuario"
-        />
-      </div>
-      <div className="form-group">
-        <label className="label-white">WhatsApp:</label>
-        <input
-          type="tel"
-          value={whatsapp}
-          onChange={(e) => setWhatsapp(e.target.value)}
-          required
-          className="form-control"
-          placeholder="Exemplo: +55 11 98765-4321"
-        />
-      </div>
-      <div className="form-group">
-        <label className="label-white">Chave PIX:</label>
-        <input
-          type="text"
-          value={pixKey}
-          onChange={(e) => setPixKey(e.target.value)}
-          className="form-control"
-          placeholder="Exemplo: chave@pix.com.br"
-        />
-      </div>
-    </div>
-
-    <div className="social-column">
-      <div className="form-group">
-        <label className="label-white">Website:</label>
-        <input
-          type="url"
-          value={website}
-          onChange={(e) => setWebsite(e.target.value)}
-          className="form-control"
-          placeholder="Exemplo: https://www.seusite.com.br"
-        />
-      </div>
-      <div className="form-group">
-        <label className="label-white">LinkedIn:</label>
-        <input
-          type="url"
-          value={linkedin}
-          onChange={(e) => setLinkedin(e.target.value)}
-          className="form-control"
-          placeholder="Exemplo: https://linkedin.com/in/seunome"
-        />
-      </div>
-      <div className="form-group">
-        <label className="label-white">YouTube:</label>
-        <input
-          type="url"
-          value={youtube}
-          onChange={(e) => setYoutube(e.target.value)}
-          className="form-control"
-          placeholder="Exemplo: https://youtube.com/c/seucanal"
-        />
-      </div>
-      <div className="form-group">
-        <label className="label-white">TikTok:</label>
-        <input
-          type="url"
-          value={tiktok}
-          onChange={(e) => setTiktok(e.target.value)}
-          className="form-control"
-          placeholder="Exemplo: https://tiktok.com/@seunome"
-        />
-      </div>
-      <div className="form-group">
-        <label className="label-white">X (antigo Twitter):</label>
-        <input
-          type="url"
-          value={x}
-          onChange={(e) => setX(e.target.value)}
-          className="form-control"
-          placeholder="Exemplo: https://x.com/seuusuario"
-        />
-      </div>
-    </div>
-  </div>
-)}
-
-
-{activeTab === 'slides' && (
-<div>
-              
-<div className="form-group">
-  <label className="label-white"></label>
-  <label
-    htmlFor="logo-upload"
-    className={`custom-file-upload ${logoUploaded ? "uploaded" : "not-uploaded"}`}>
-    {logoUploaded ? "✅ Logo Carregada!" : "Escolher Logo"}
-  </label>
-  <input type="file" id="logo-upload" onChange={handleLogoChange} className="custom-file-input" />
-</div>
-
-<div className="form-group">
-  <label className="label-white"></label>
-  <label
-    htmlFor="bg-image-upload"
-    className={`custom-file-upload ${bgImageUploaded ? "uploaded" : "not-uploaded"}`}
-  >
-    {bgImageUploaded ? "✅ Imagem Carregada!" : "Escolher Imagem de Fundo"}
-  </label>
-  <input type="file" id="bg-image-upload" onChange={handleBgImageChange} className="custom-file-input" />
-</div>
-
-<div className="form-group">
-  <label className="label-white">Slides:</label>
-  {[0, 1, 2].map((index) => (
-    <div key={index}>
-      <label
-        htmlFor={`carousel-upload-${index}`}
-        className={`custom-file-upload ${carouselUploaded[index] ? "uploaded" : "not-uploaded"}`}
-      >
-        {carouselUploaded[index] ? `✅ Slide ${index + 1} Carregado!` : `Escolher Slide ${index + 1}`}
-      </label>
-      <input
-        type="file"
-        id={`carousel-upload-${index}`}
-        onChange={(e) => handleCarouselImageChange(index, e)}
-        className="custom-file-input"
-      />
-    </div>
-  ))}
-</div>
-
-
-
-
-             
-
-              {/* Seletores de cor */}
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div>
-                  <button
-                  className="glow-on-hover"
-                    type="button"
-                    onClick={() => {
-                      setShowPicker({ ...showPicker, bg: !showPicker.bg });
-                      setCurrentPicker('bg');
-                    }}
-                  >
-                    Cor de Fundo
-                  </button>
-                  {showPicker.bg && (
-                    <div ref={pickerRef}>
-                      <ChromePicker color={bgColor} onChange={(color) => handleColorChange(color, 'bg')} />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <button
-                  className="glow-on-hover"
-                    type="button"
-                    onClick={() => {
-                      setShowPicker({ ...showPicker, label: !showPicker.label });
-                      setCurrentPicker('label');
-                    }}
-                  >
-                    Cor da caixa de texto
-                  </button>
-                  {showPicker.label && (
-                    <div ref={pickerRef}>
-                      <ChromePicker color={labelBgColor} onChange={(color) => handleColorChange(color, 'label')} />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <button
-                  className="glow-on-hover"
-                    type="button"
-                    onClick={() => {
-                      setShowPicker({ ...showPicker, font: !showPicker.font });
-                      setCurrentPicker('font');
-                    }}
-                  >
-                    Cor da Fonte
-                  </button>
-                  {showPicker.font && (
-                    <div ref={pickerRef}>
-                      <ChromePicker color={fontColor} onChange={(color) => handleColorChange(color, 'font')} />
-                    </div>
-                  )}
-                </div>
+          {/* Upload do Carrossel */}
+          <div className="form-group">
+            <label>Fotos do Carrossel (até 3)</label>
+            {[0, 1, 2].map((index) => (
+              <div key={index}>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleImageChange(e, 'carousel', index)}
+                />
+                {carouselImages[index] && <img src={carouselImages[index]} alt={`Carrossel ${index}`} style={{ width: '100px', marginTop: '10px' }} />}
               </div>
-            </div>
-          )}
+            ))}
+          </div>
+        </div>
 
-          <button type="submit" className="btn btn-primary glow-on-hover">Salvar</button>
-        </form>
-      </div>
+        {/* Botão de Salvar */}
+        <div className="form-actions">
+          <button type="submit" className="save-button">
+            Salvar Configurações
+          </button>
+        </div>
+      </form>
     </div>
   );
 };
