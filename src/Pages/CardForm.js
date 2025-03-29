@@ -2,6 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChromePicker } from 'react-color';
 import logoImage from '../assets/images/logo.jpg';
+import './cardform.css';
+import { addDoc, collection } from "firebase/firestore";
+import { db } from "./firebase";
 
 const backgroundStyle = {
   backgroundImage: `url(${logoImage})`,
@@ -14,7 +17,7 @@ const backgroundStyle = {
   alignItems: 'center',
 };
 
-const CardForm = ({ onSubmit }) => {
+const CardForm = ({ user, onSubmit }) => {
   const [activeTab, setActiveTab] = useState('profile');
   const [name, setName] = useState('');
   const [instagram, setInstagram] = useState('');
@@ -38,11 +41,41 @@ const CardForm = ({ onSubmit }) => {
   const [error, setError] = useState('');
   const [showPicker, setShowPicker] = useState({ bg: false, label: false, font: false });
   const [currentPicker, setCurrentPicker] = useState(null);
-  const [selectedIcon, setSelectedIcon] = useState(null); // Estado para armazenar o ícone selecionado
+  const [selectedIcon] = useState(null); // Estado para armazenar o ícone selecionado
   const pickerRef = useRef(null);
   const navigate = useNavigate();
+  const [logoUploaded, setLogoUploaded] = useState(false);
+  const [bgImageUploaded, setBgImageUploaded] = useState(false);
+  const [carouselUploaded, setCarouselUploaded] = useState([false, false, false]);
+  
+  // Função para carregar os dados do usuário
+  useEffect(() => {
+    if (user) {
+      // Se o usuário estiver logado, preenche os campos com os dados dele
+      setName(user.name || '');
+      setInstagram(user.instagram || '');
+      setFacebook(user.facebook || '');
+      setWhatsapp(user.whatsapp || '');
+      setPhone(user.phone || '');
+      setAddress(user.address || '');
+      setLogo(user.logo || null);
+      setPixKey(user.pixKey || '');
+      setWebsite(user.website || '');
+      setAbout(user.about || '');
+      setLinkedin(user.linkedin || '');
+      setYoutube(user.youtube || '');
+      setTiktok(user.tiktok || '');
+      setX(user.x || '');
+      setBgColor(user.bgColor || '#ffffff');
+      setLabelBgColor(user.labelBgColor || '#f0f0f0');
+      setFontColor(user.fontColor || '#000000');
+      setBgImage(user.bgImage || null);
+      setCarouselImages(user.carouselImages || [null, null, null]);
+    }
+  }, [user]);
 
-  const handleSubmit = (e) => {
+  // Função para enviar os dados do formulário
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!name || !whatsapp) {
       setError('Nome e WhatsApp são obrigatórios.');
@@ -69,27 +102,44 @@ const CardForm = ({ onSubmit }) => {
       fontColor,
       bgImage,
       carouselImages,
-      selectedIcon, // Adicionando ícone selecionado ao objeto de dados
+      selectedIcon,
     };
+
+    try {
+      const docRef = await addDoc(collection(db, "users"), cardData); // Armazenando na coleção "users"
+      console.log("Documento gravado com ID: ", docRef.id);
+    } catch (error) {
+      setError("Erro ao salvar os dados no banco de dados.");
+    }
 
     onSubmit(cardData);
     navigate('/preview');
   };
 
+  // Função para atualizar a logo
   const handleLogoChange = (e) => {
     setLogo(e.target.files[0]);
+    setLogoUploaded(true); // Atualiza o estado para indicar que o upload foi feito
   };
 
+  // Função para atualizar a imagem de fundo
   const handleBgImageChange = (e) => {
     setBgImage(e.target.files[0]);
+    setBgImageUploaded(true);
   };
 
+  // Função para atualizar as imagens do carrossel
   const handleCarouselImageChange = (index, e) => {
     const updatedImages = [...carouselImages];
     updatedImages[index] = e.target.files[0];
     setCarouselImages(updatedImages);
+
+    const updatedStatus = [...carouselUploaded];
+    updatedStatus[index] = true;
+    setCarouselUploaded(updatedStatus);
   };
 
+  // Função para lidar com a mudança de cor
   const handleColorChange = (color, type) => {
     const rgbaColor = `rgba(${color.rgb.r}, ${color.rgb.g}, ${color.rgb.b}, ${color.rgb.a})`;
     if (type === 'bg') setBgColor(rgbaColor);
@@ -97,8 +147,10 @@ const CardForm = ({ onSubmit }) => {
     if (type === 'font') setFontColor(rgbaColor);
   };
 
-  const handleIconSelect = (icon) => {
-    setSelectedIcon(icon); // Atualiza o ícone selecionado
+  // Função para exibir o seletor de cores
+  const handleColorPickerToggle = (type) => {
+    setShowPicker({ ...showPicker, [type]: !showPicker[type] });
+    setCurrentPicker(type);
   };
 
   return (
@@ -107,16 +159,16 @@ const CardForm = ({ onSubmit }) => {
         <h1 className="text-center mb-4">Tap Conecte</h1>
         {error && <p className="alert alert-danger">{error}</p>}
 
-        <div>
-          <button onClick={() => setActiveTab('profile')}>Informações de Perfil</button>
-          <button onClick={() => setActiveTab('social')}>Redes Sociais</button>
-          <button onClick={() => setActiveTab('slides')}>Pesonalização</button>
+        <div className="button-container">
+          <button className="glow-on-hover" onClick={() => setActiveTab('profile')}>Informações de Perfil</button>
+          <button className="glow-on-hover" onClick={() => setActiveTab('social')}>Redes Sociais</button>
+          <button className="glow-on-hover" onClick={() => setActiveTab('slides')}>Personalização</button>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form className="form-container" onSubmit={handleSubmit}>
+          {/* Formulário do perfil */}
           {activeTab === 'profile' && (
             <div>
-              <h3>Informações de Perfil</h3>
               <div className="form-group">
                 <label className="label-white">Nome:</label>
                 <input
@@ -125,15 +177,17 @@ const CardForm = ({ onSubmit }) => {
                   onChange={(e) => setName(e.target.value)}
                   required
                   className="form-control"
+                  placeholder="João Silva"
                 />
               </div>
               <div className="form-group">
                 <label className="label-white">Telefone:</label>
                 <input
-                  type="tel"
+                  type="text"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="form-control"
+                  placeholder="(XX) XXXX-XXXX"
                 />
               </div>
               <div className="form-group">
@@ -143,197 +197,115 @@ const CardForm = ({ onSubmit }) => {
                   value={address}
                   onChange={(e) => setAddress(e.target.value)}
                   className="form-control"
-                />
-              </div>
-              <div className="form-group">
-                <label className="label-white">Sobre:</label>
-                <textarea
-                  value={about}
-                  onChange={(e) => setAbout(e.target.value)}
-                  className="form-control"
+                  placeholder="Rua X, 123"
                 />
               </div>
             </div>
           )}
 
+          {/* Formulário de redes sociais */}
           {activeTab === 'social' && (
-            <div>
-              <h3>Redes Sociais</h3>
+            <div className="social-container">
               <div className="form-group">
                 <label className="label-white">Instagram:</label>
                 <input
-                  type="url"
+                  type="text"
                   value={instagram}
                   onChange={(e) => setInstagram(e.target.value)}
                   className="form-control"
+                  placeholder="https://instagram.com/seunome"
                 />
               </div>
               <div className="form-group">
                 <label className="label-white">Facebook:</label>
                 <input
-                  type="url"
+                  type="text"
                   value={facebook}
                   onChange={(e) => setFacebook(e.target.value)}
                   className="form-control"
-                />
-              </div>
-              <div className="form-group">
-                <label className="label-white">WhatsApp:</label>
-                <input
-                  type="tel"
-                  value={whatsapp}
-                  onChange={(e) => setWhatsapp(e.target.value)}
-                  required
-                  className="form-control"
-                />
-              </div>
-              <div className="form-group">
-                <label className="label-white">Chave PIX:</label>
-                <input
-                  type="text"
-                  value={pixKey}
-                  onChange={(e) => setPixKey(e.target.value)}
-                  className="form-control"
-                />
-              </div>
-              <div className="form-group">
-                <label className="label-white">Website:</label>
-                <input
-                  type="url"
-                  value={website}
-                  onChange={(e) => setWebsite(e.target.value)}
-                  className="form-control"
+                  placeholder="https://facebook.com/seunome"
                 />
               </div>
               <div className="form-group">
                 <label className="label-white">LinkedIn:</label>
                 <input
-                  type="url"
+                  type="text"
                   value={linkedin}
                   onChange={(e) => setLinkedin(e.target.value)}
                   className="form-control"
+                  placeholder="https://linkedin.com/in/seunome"
                 />
               </div>
               <div className="form-group">
-                <label className="label-white">YouTube:</label>
+                <label className="label-white">WhatsApp:</label>
                 <input
-                  type="url"
-                  value={youtube}
-                  onChange={(e) => setYoutube(e.target.value)}
+                  type="text"
+                  value={whatsapp}
+                  onChange={(e) => setWhatsapp(e.target.value)}
+                  required
                   className="form-control"
-                />
-              </div>
-              <div className="form-group">
-                <label className="label-white">TikTok:</label>
-                <input
-                  type="url"
-                  value={tiktok}
-                  onChange={(e) => setTiktok(e.target.value)}
-                  className="form-control"
-                />
-              </div>
-              <div className="form-group">
-                <label className="label-white">X:</label>
-                <input
-                  type="url"
-                  value={x}
-                  onChange={(e) => setX(e.target.value)}
-                  className="form-control"
+                  placeholder="(XX) XXXXX-XXXX"
                 />
               </div>
             </div>
           )}
 
+          {/* Personalização */}
           {activeTab === 'slides' && (
             <div>
-              
               <div className="form-group">
-                <label className="label-white">Logo:</label>
-                <input
-                  type="file"
-                  onChange={handleLogoChange}
-                  className="form-control"
-                />
+                <label className="label-white">Cor de Fundo:</label>
+                <button type="button" onClick={() => handleColorPickerToggle('bg')} className="btn btn-primary">
+                  Escolher cor de fundo
+                </button>
+                {showPicker.bg && (
+                  <ChromePicker color={bgColor} onChange={(color) => handleColorChange(color, 'bg')} />
+                )}
               </div>
               <div className="form-group">
-                <label className="label-white">Imagem de Fundo:</label>
-                <input
-                  type="file"
-                  onChange={handleBgImageChange}
-                  className="form-control"
-                />
+                <label className="label-white">Cor do Rótulo:</label>
+                <button type="button" onClick={() => handleColorPickerToggle('label')} className="btn btn-primary">
+                  Escolher cor do rótulo
+                </button>
+                {showPicker.label && (
+                  <ChromePicker color={labelBgColor} onChange={(color) => handleColorChange(color, 'label')} />
+                )}
               </div>
               <div className="form-group">
-                <label className="label-white">Carrossel de Imagens:</label>
-                {[0, 1, 2].map((index) => (
-                  <input
-                    key={index}
-                    type="file"
-                    onChange={(e) => handleCarouselImageChange(index, e)}
-                    className="form-control"
-                  />
+                <label className="label-white">Cor da Fonte:</label>
+                <button type="button" onClick={() => handleColorPickerToggle('font')} className="btn btn-primary">
+                  Escolher cor da fonte
+                </button>
+                {showPicker.font && (
+                  <ChromePicker color={fontColor} onChange={(color) => handleColorChange(color, 'font')} />
+                )}
+              </div>
+
+              {/* Upload de arquivos */}
+              <div className="form-group">
+                <label className="label-white">Logo (Opcional):</label>
+                <input type="file" onChange={handleLogoChange} className="form-control" />
+              </div>
+              <div className="form-group">
+                <label className="label-white">Imagem de Fundo (Opcional):</label>
+                <input type="file" onChange={handleBgImageChange} className="form-control" />
+              </div>
+
+              {/* Carrossel de imagens */}
+              <div className="form-group">
+                <label className="label-white">Carrossel de Imagens (3):</label>
+                {carouselImages.map((image, index) => (
+                  <div key={index} className="carousel-image-upload">
+                    <input type="file" onChange={(e) => handleCarouselImageChange(index, e)} />
+                  </div>
                 ))}
-              </div>
-
-             
-
-              {/* Seletores de cor */}
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPicker({ ...showPicker, bg: !showPicker.bg });
-                      setCurrentPicker('bg');
-                    }}
-                  >
-                    Cor de Fundo
-                  </button>
-                  {showPicker.bg && (
-                    <div ref={pickerRef}>
-                      <ChromePicker color={bgColor} onChange={(color) => handleColorChange(color, 'bg')} />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPicker({ ...showPicker, label: !showPicker.label });
-                      setCurrentPicker('label');
-                    }}
-                  >
-                    Cor do Rótulo
-                  </button>
-                  {showPicker.label && (
-                    <div ref={pickerRef}>
-                      <ChromePicker color={labelBgColor} onChange={(color) => handleColorChange(color, 'label')} />
-                    </div>
-                  )}
-                </div>
-
-                <div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowPicker({ ...showPicker, font: !showPicker.font });
-                      setCurrentPicker('font');
-                    }}
-                  >
-                    Cor da Fonte
-                  </button>
-                  {showPicker.font && (
-                    <div ref={pickerRef}>
-                      <ChromePicker color={fontColor} onChange={(color) => handleColorChange(color, 'font')} />
-                    </div>
-                  )}
-                </div>
               </div>
             </div>
           )}
 
-          <button type="submit" className="btn btn-primary">Salvar</button>
+          <div className="button-container">
+            <button className="glow-on-hover" type="submit">Salvar</button>
+          </div>
         </form>
       </div>
     </div>
