@@ -1,19 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { collection, addDoc, query, where, getDocs, updateDoc, doc } from 'firebase/firestore';
-import { db } from '../firebase';
+import { 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  getDocs,
+  doc,
+  updateDoc,
+  serverTimestamp 
+} from 'firebase/firestore';
+import { db, auth } from '../firebase';
 import { signOut } from 'firebase/auth';
-import { auth } from '../firebase';
 import { useNavigate } from 'react-router-dom';
-import './AdminPanel.css'; // Create this CSS file for styling
+import { useAuth } from '../contexts/AuthContext';
+import './AdminPanel.css';
 
 const AdminPanel = () => {
   const [codes, setCodes] = useState([]);
   const [newCode, setNewCode] = useState('');
-  const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const navigate = useNavigate();
+  const { currentUser } = useAuth();
 
-  // Fetch all codes from Firestore
+  // Gerar código aleatório
+  const generateRandomCode = () => {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let result = '';
+    for (let i = 0; i < 6; i++) {
+      result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+  };
+
+  // Buscar todos os códigos
   const fetchCodes = async () => {
     setLoading(true);
     try {
@@ -25,139 +47,200 @@ const AdminPanel = () => {
       });
       setCodes(codesData);
     } catch (error) {
-      console.error('Error fetching codes:', error);
+      setError('Erro ao buscar códigos: ' + error.message);
     } finally {
       setLoading(false);
     }
   };
 
-  // Generate a new random code
-  const generateRandomCode = () => {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Exclude confusing characters
-    let result = '';
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  };
-
-  // Add a new code to Firestore
+  // Adicionar novo código (apenas para admins)
   const handleAddCode = async () => {
-    if (!newCode.trim()) return;
-    
+    if (!currentUser?.isAdmin) {
+      setError('Acesso negado: apenas administradores podem gerar códigos');
+      return;
+    }
+
+    if (!newCode.trim()) {
+      setError('Digite um código válido');
+      return;
+    }
+
     try {
       await addDoc(collection(db, 'codes'), {
         code: newCode.toUpperCase(),
         status: 'available',
-        createdAt: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        createdBy: currentUser.uid,
         usedBy: null,
         usedAt: null
       });
+      setSuccess(`Código ${newCode} adicionado com sucesso!`);
       setNewCode('');
-      fetchCodes(); // Refresh the list
+      fetchCodes();
     } catch (error) {
-      console.error('Error adding code:', error);
+      setError('Erro ao adicionar código: ' + error.message);
     }
   };
 
-  // Generate and add a random code
+  // Gerar e adicionar código aleatório
   const handleGenerateCode = async () => {
     const code = generateRandomCode();
     setNewCode(code);
     await handleAddCode();
   };
 
-  // Sign out admin
+  // Inativar código (apenas para admins)
+  const deactivateCode = async (codeId) => {
+    if (!currentUser?.isAdmin) {
+      setError('Acesso negado: apenas administradores podem desativar códigos');
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'codes', codeId), {
+        status: 'inactive',
+        deactivatedAt: serverTimestamp(),
+        deactivatedBy: currentUser.uid
+      });
+      setSuccess('Código desativado com sucesso');
+      fetchCodes();
+    } catch (error) {
+      setError('Erro ao desativar código: ' + error.message);
+    }
+  };
+
+  // Logout
   const handleSignOut = async () => {
     try {
       await signOut(auth);
       navigate('/login');
     } catch (error) {
-      console.error('Error signing out:', error);
+      setError('Erro ao sair: ' + error.message);
     }
   };
 
-  // Filter codes based on search term
+  // Filtrar códigos
   const filteredCodes = codes.filter(code => 
     code.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (code.usedBy && code.usedBy.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
+  // Carregar códigos ao montar o componente
   useEffect(() => {
     fetchCodes();
   }, []);
+
+  // Limpar mensagens após 5 segundos
+  useEffect(() => {
+    if (error || success) {
+      const timer = setTimeout(() => {
+        setError('');
+        setSuccess('');
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [error, success]);
+
+  // Redirecionar se não for admin
+  useEffect(() => {
+    if (currentUser && !currentUser.isAdmin) {
+      navigate('/');
+    }
+  }, [currentUser, navigate]);
+
+  if (!currentUser) {
+    return <div className="loading">Verificando acesso...</div>;
+  }
 
   return (
     <div className="admin-container">
       <header className="admin-header">
         <h1>Painel Administrativo</h1>
-        <button onClick={handleSignOut} className="logout-button">
-          Sair
-        </button>
+        <div className="user-info">
+          <span>{currentUser.email}</span>
+          <button onClick={handleSignOut} className="logout-button">
+            Sair
+          </button>
+        </div>
       </header>
 
-      <div className="code-controls">
-        <div className="code-input-group">
+      {error && <div className="alert error">{error}</div>}
+      {success && <div className="alert success">{success}</div>}
+
+      <div className="admin-content">
+        <div className="code-controls">
+          <h2>Gerenciar Códigos</h2>
+          <div className="code-input-group">
+            <input
+              type="text"
+              value={newCode}
+              onChange={(e) => setNewCode(e.target.value)}
+              placeholder="Digite um código ou gere aleatório"
+              maxLength="6"
+              className="code-input"
+            />
+            <button onClick={handleAddCode} className="add-button">
+              Adicionar Código
+            </button>
+            <button onClick={handleGenerateCode} className="generate-button">
+              Gerar Código
+            </button>
+          </div>
+        </div>
+
+        <div className="search-container">
           <input
             type="text"
-            value={newCode}
-            onChange={(e) => setNewCode(e.target.value)}
-            placeholder="Digite um código ou gere aleatório"
-            maxLength="6"
-            className="code-input"
+            placeholder="Buscar códigos ou usuários..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="search-input"
           />
-          <button onClick={handleAddCode} className="add-button">
-            Adicionar Código
-          </button>
-          <button onClick={handleGenerateCode} className="generate-button">
-            Gerar Código
-          </button>
         </div>
-      </div>
 
-      <div className="search-container">
-        <input
-          type="text"
-          placeholder="Buscar códigos ou usuários..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="search-input"
-        />
+        {loading ? (
+          <div className="loading">Carregando...</div>
+        ) : (
+          <div className="codes-list-container">
+            <div className="codes-list-header">
+              <span>Código</span>
+              <span>Status</span>
+              <span>Criado em</span>
+              <span>Usuário</span>
+              <span>Ações</span>
+            </div>
+            <div className="codes-list">
+              {filteredCodes.length > 0 ? (
+                filteredCodes.map((code) => (
+                  <div key={code.id} className={`code-item ${code.status}`}>
+                    <span>{code.code}</span>
+                    <span className={`status-badge ${code.status}`}>
+                      {code.status === 'available' ? 'Disponível' : 
+                       code.status === 'used' ? 'Utilizado' : 'Inativo'}
+                    </span>
+                    <span>
+                      {code.createdAt?.toDate().toLocaleDateString()}
+                    </span>
+                    <span>{code.usedBy || '-'}</span>
+                    <span>
+                      {code.status === 'available' && (
+                        <button 
+                          onClick={() => deactivateCode(code.id)}
+                          className="deactivate-button"
+                        >
+                          Desativar
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className="no-codes">Nenhum código encontrado</div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
-
-      {loading ? (
-        <div className="loading">Carregando...</div>
-      ) : (
-        <div className="codes-list-container">
-          <h2>Códigos Cadastrados</h2>
-          <div className="codes-list-header">
-            <span>Código</span>
-            <span>Status</span>
-            <span>Usuário</span>
-            <span>Data</span>
-          </div>
-          <div className="codes-list">
-            {filteredCodes.length > 0 ? (
-              filteredCodes.map((code) => (
-                <div key={code.id} className={`code-item ${code.status}`}>
-                  <span>{code.code}</span>
-                  <span className={`status-badge ${code.status}`}>
-                    {code.status === 'available' ? 'Disponível' : 'Utilizado'}
-                  </span>
-                  <span>{code.usedBy || '-'}</span>
-                  <span>
-                    {code.usedAt 
-                      ? new Date(code.usedAt).toLocaleDateString() 
-                      : new Date(code.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <div className="no-codes">Nenhum código encontrado</div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };

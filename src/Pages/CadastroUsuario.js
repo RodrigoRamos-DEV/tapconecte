@@ -1,70 +1,144 @@
-// src/pages/CadastroUsuario.js
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { doc, setDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import './CadastroUsuario.css';
 
 const CadastroUsuario = () => {
   const [email, setEmail] = useState('');
-  const [senha, setSenha] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const { state } = useLocation();
   const navigate = useNavigate();
 
-  const handleCadastro = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    setError('');
+    setLoading(true);
+
+    // Validações básicas
+    if (!email || !password || !confirmPassword) {
+      setError('Preencha todos os campos');
+      setLoading(false);
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('As senhas não coincidem');
+      setLoading(false);
+      return;
+    }
+
+    if (!state?.codigo) {
+      setError('Código de validação não encontrado');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // 1. Criar usuário no Auth
-      const userCredential = await createUserWithEmailAndPassword(auth, email, senha);
-      
-      // 2. Atualizar código no Firestore
-      const codigoRef = doc(db, 'codes', state.codigo);
-      await updateDoc(codigoRef, {
+      // 1. Criar usuário no Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+
+      // 2. Atualizar o código no Firestore
+      const codeRef = doc(db, 'codes', state.codigo);
+      await updateDoc(codeRef, {
         status: 'used',
-        usedBy: userCredential.user.uid,
-        usedAt: new Date().toISOString()
+        usedBy: user.uid,
+        usedAt: new Date()
       });
 
       // 3. Criar documento do usuário
-      await setDoc(doc(db, 'usuarios', userCredential.user.uid), {
-        codigo: state.codigo,
+      await setDoc(doc(db, 'users', user.uid), {
         email,
-        dadosCartao: null,
-        createdAt: new Date().toISOString()
+        codigoVinculado: state.codigo,
+        createdAt: new Date(),
+        profileComplete: false
       });
 
-      navigate('/cardform');
+      // Redirecionar para completar perfil
+      navigate('/complete-profile');
 
     } catch (error) {
-      setError('Erro no cadastro: ' + error.message);
+      let errorMessage = 'Erro ao cadastrar: ';
+      switch (error.code) {
+        case 'auth/email-already-in-use':
+          errorMessage += 'Este email já está em uso';
+          break;
+        case 'auth/invalid-email':
+          errorMessage += 'Email inválido';
+          break;
+        case 'auth/weak-password':
+          errorMessage += 'Senha muito fraca (mínimo 6 caracteres)';
+          break;
+        default:
+          errorMessage += error.message;
+      }
+      setError(errorMessage);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <div className="cadastro-container">
-      <h2>Criar Conta</h2>
-      <p>Código válido: {state?.codigo}</p>
-      {error && <p className="error-message">{error}</p>}
-      
-      <form onSubmit={handleCadastro}>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Senha"
-          value={senha}
-          onChange={(e) => setSenha(e.target.value)}
-          required
-        />
-        <button type="submit">Cadastrar</button>
-      </form>
+      <div className="cadastro-card">
+        <h2>Criar Conta</h2>
+        <p className="codigo-info">Código válido: <strong>{state?.codigo}</strong></p>
+        
+        {error && <div className="alert error">{error}</div>}
+
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="Seu email"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Senha</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Mínimo 6 caracteres"
+              minLength="6"
+              required
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Confirmar Senha</label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              placeholder="Digite novamente"
+              required
+            />
+          </div>
+
+          <button 
+            type="submit" 
+            className="submit-button"
+            disabled={loading}
+          >
+            {loading ? 'Cadastrando...' : 'Criar Conta'}
+          </button>
+        </form>
+
+        <div className="login-link">
+          Já tem uma conta? <a href="/login">Faça login</a>
+        </div>
+      </div>
     </div>
   );
 };

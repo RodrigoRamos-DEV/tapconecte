@@ -1,42 +1,119 @@
 .admin-container {
-    padding: 20px;
-    max-width: 1000px;
-    margin: 0 auto;
-  }
-  
-  .code-controls {
-    margin: 20px 0;
-    display: flex;
-    gap: 10px;
-  }
-  
-  .codes-list-header {
-    display: grid;
-    grid-template-columns: 1fr 1fr 2fr 1fr;
-    font-weight: bold;
-    padding: 10px;
-    background: #f0f0f0;
-  }
-  
-  .code-item {
-    display: grid;
-    grid-template-columns: 1fr 1fr 2fr 1fr;
-    padding: 10px;
-    border-bottom: 1px solid #eee;
-  }
-  
-  .status-badge {
-    padding: 3px 8px;
-    border-radius: 12px;
-    font-size: 0.8em;
-  }
-  
-  .status-badge.available {
-    background: #d4edda;
-    color: #155724;
-  }
-  
-  .status-badge.used {
-    background: #f8d7da;
-    color: #721c24;
-  }
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+}
+
+.code-controls {
+  margin-bottom: 20px;
+}
+
+.code-input-group {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.code-input, .search-input {
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  flex: 1;
+}
+
+.add-button, .generate-button, .logout-button {
+  padding: 10px 15px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.add-button {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.generate-button {
+  background-color: #2196F3;
+  color: white;
+}
+
+.logout-button {
+  background-color: #f44336;
+  color: white;
+}
+
+.deactivate-button {
+  background-color: #ff9800;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.codes-list-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr 1fr 1fr;
+  font-weight: bold;
+  padding: 10px;
+  background-color: #f5f5f5;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+
+.code-item {
+  display: grid;
+  grid-template-columns: 1fr 1fr 2fr 1fr 1fr;
+  padding: 10px;
+  border-bottom: 1px solid #eee;
+  align-items: center;
+}
+
+.status-badge {
+  padding: 3px 8px;
+  border-radius: 10px;
+  font-size: 0.8em;
+  color: white;
+}
+
+.status-badge.available {
+  background-color: #4CAF50;
+}
+
+.status-badge.used {
+  background-color: #9E9E9E;
+}
+
+.status-badge.inactive {
+  background-color: #f44336;
+}
+
+.alert {
+  padding: 10px;
+  margin-bottom: 15px;
+  border-radius: 4px;
+}
+
+.alert.error {
+  background-color: #ffebee;
+  color: #f44336;
+}
+
+.alert.success {
+  background-color: #e8f5e9;
+  color: #4CAF50;
+}
+
+.loading {
+  text-align: center;
+  padding: 20px;
+}
